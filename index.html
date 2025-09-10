@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Career Navigator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://rsms.me/inter/inter.css');
+        body { font-family: 'Inter', sans-serif; background-color: #030712; color: #f9fafb; }
+        .app-bg { background-color: #111827; }
+        .sidebar-bg { background-color: #030712; }
+        .card-bg { background-color: #1f2937; border: 1px solid #374151; }
+        .btn-primary { background-color: #3b82f6; color: white; transition: all .3s ease; }
+        .btn-primary:hover { background-color: #2563eb; }
+        .loader { border: 4px solid #374151; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .progress-bar-fill { transition: width 0.5s ease-in-out; background-image: linear-gradient(to right, #60a5fa, #3b82f6); }
+        .modal-content h1, .modal-content h2, .modal-content h3 { font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+        .modal-content ul, .modal-content ol { list-style: revert; margin-left: 1.5rem; margin-bottom: 1rem; }
+        .modal-content a { color: #60a5fa; text-decoration: underline; }
+        .job-card { transition: all 0.3s ease; }
+        .job-card:hover { transform: translateY(-5px); border-color: #3b82f6; }
+    </style>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div id="app" class="w-full max-w-6xl h-screen max-h-[90vh] mx-auto app-bg rounded-2xl shadow-2xl flex overflow-hidden">
+        <!-- Content will be rendered here by JavaScript -->
+    </div>
+    
+    <!-- TEMPLATES for dynamic sections -->
+    <template id="auth-template">
+        <div class="w-full flex flex-col items-center justify-center p-8">
+            <div class="flex items-center gap-3 mb-4"><div class="bg-blue-500 p-2 rounded-lg"><i data-lucide="compass" class="w-8 h-8 text-white"></i></div><h1 class="text-3xl font-bold">Career Navigator</h1></div>
+            <p class="text-gray-400 mb-8">Login or create an account to begin.</p>
+            <div class="max-w-sm w-full card-bg p-8 rounded-lg">
+                <div class="flex border-b border-gray-700 mb-6"><button id="login-tab" class="flex-1 pb-2 text-center font-semibold text-blue-400 border-b-2 border-blue-400">Login</button><button id="register-tab" class="flex-1 pb-2 text-center font-semibold text-gray-500">Register</button></div>
+                <form id="login-form">
+                    <div class="mb-4"><label for="login-email" class="block text-sm font-medium text-gray-400">Email</label><input type="email" id="login-email" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" required></div>
+                    <div class="mb-6"><label for="login-password" class="block text-sm font-medium text-gray-400">Password</label><input type="password" id="login-password" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" required minlength="6"></div>
+                    <button type="submit" class="w-full btn-primary py-2.5 px-4 rounded-lg font-semibold">Login</button>
+                </form>
+                <form id="register-form" class="hidden">
+                    <div class="mb-4"><label for="register-email" class="block text-sm font-medium text-gray-400">Email</label><input type="email" id="register-email" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" required></div>
+                    <div class="mb-6"><label for="register-password" class="block text-sm font-medium text-gray-400">Password</label><input type="password" id="register-password" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" required minlength="6"></div>
+                    <button type="submit" class="w-full btn-primary py-2.5 px-4 rounded-lg font-semibold">Create Account</button>
+                </form>
+                <p id="auth-error" class="text-red-400 text-sm mt-4 text-center"></p>
+            </div>
+        </div>
+    </template>
+
+    <template id="app-shell-template">
+        <aside class="sidebar-bg w-20 lg:w-64 p-4 lg:p-6 flex flex-col">
+            <div class="flex items-center gap-3 mb-10"><div class="bg-blue-500 p-2 rounded-lg"><i data-lucide="compass" class="w-6 h-6 text-white"></i></div><h1 class="text-xl font-bold hidden lg:block">Career Navigator</h1></div>
+            <nav class="flex-1">
+                <a href="#" id="home-nav" class="flex items-center gap-3 py-3 px-4 rounded-lg font-semibold"><i data-lucide="home" class="w-5 h-5"></i><span class="hidden lg:inline">Home</span></a>
+                <a href="#" id="jobs-nav" class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-700 mt-2"><i data-lucide="briefcase" class="w-5 h-5"></i><span class="hidden lg:inline">Recommended Jobs</span></a>
+                <a href="#" id="settings-nav" class="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-700 mt-2"><i data-lucide="settings" class="w-5 h-5"></i><span class="hidden lg:inline">Settings</span></a>
+            </nav>
+            <div class="mt-auto">
+                 <button id="logout-btn" class="w-full flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-gray-700 text-gray-400"><i data-lucide="log-out" class="w-5 h-5"></i><span class="hidden lg:inline">Logout</span></button>
+            </div>
+        </aside>
+        <main id="main-content" class="flex-1 p-8 overflow-y-auto">
+            <!-- Dynamic content (Quiz, Profile, Dashboard, Jobs) will be injected here -->
+        </main>
+    </template>
+    
+    <template id="profile-template">
+        <div class="max-w-md mx-auto text-center card-bg p-8 rounded-lg">
+            <h2 class="text-2xl font-bold text-white mb-2">Setup Your Profile</h2>
+            <p class="text-gray-400 mb-6">Let's personalize your journey.</p>
+            <form id="profile-form">
+                 <div class="mb-6 text-left"><label for="displayName" class="block text-sm font-medium text-gray-400">Display Name</label><input type="text" id="displayName" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" required minlength="3" maxlength="30"></div>
+                 <div class="mb-6 text-left"><label class="block text-sm font-medium text-gray-400 mb-2">Choose an Avatar</label><div id="avatar-selection" class="grid grid-cols-4 gap-4"></div></div>
+                <button type="submit" class="w-full btn-primary py-2.5 px-4">Save & Continue</button>
+            </form>
+        </div>
+    </template>
+    
+    <template id="quiz-template">
+        <div class="max-w-lg mx-auto text-center card-bg p-8 rounded-lg">
+            <h2 class="text-2xl font-bold text-white mb-2">Tell Us About Yourself</h2>
+            <p class="text-gray-400 mb-6">Your answers will help create the perfect career path for you.</p>
+            <form id="quiz-form">
+                <div class="mb-4 text-left"><label for="skills" class="block text-sm font-medium text-gray-400">Your Skills</label><textarea id="skills" rows="3" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" placeholder="e.g., Python, public speaking..." required></textarea></div>
+                <div class="mb-4 text-left"><label for="interests" class="block text-sm font-medium text-gray-400">Your Interests</label><textarea id="interests" rows="3" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" placeholder="e.g., Artificial intelligence..." required></textarea></div>
+                <div class="mb-6 text-left"><label for="experience" class="block text-sm font-medium text-gray-400">Your Experience</label><select id="experience" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md"><option>Beginner / Student</option><option>Intermediate</option><option>Advanced</option></select></div>
+                <button type="submit" class="w-full btn-primary py-2.5 px-4">Generate My Roadmap</button>
+            </form>
+        </div>
+    </template>
+    
+    <template id="dashboard-template">
+        <h1 class="text-3xl font-bold mb-6">Personalized Recommendations</h1>
+        <div class="grid lg:grid-cols-3 gap-6 mb-8">
+            <div class="card-bg p-6 rounded-lg"><h3 class="font-semibold text-gray-400 mb-2">Skill-Based Roles</h3><p id="skill-based-summary" class="text-gray-300"></p></div>
+            <div class="card-bg p-6 rounded-lg"><h3 class="font-semibold text-gray-400 mb-2">Interest-Driven Paths</h3><p id="interest-based-summary" class="text-gray-300"></p></div>
+            <div class="card-bg p-6 rounded-lg"><h3 class="font-semibold text-gray-400 mb-2">Experience-Matched</h3><p id="experience-based-summary" class="text-gray-300"></p></div>
+        </div>
+        <div>
+            <!-- NEW: Updated Title and added New Roadmap button -->
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Your Personalized Roadmap</h2>
+                <button id="new-roadmap-btn" class="flex items-center gap-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span>New Roadmap</span>
+                </button>
+            </div>
+            <div class="card-bg p-6 rounded-lg mb-6">
+                <p class="font-semibold mb-4">Your Journey</p>
+                <p class="text-5xl font-bold text-blue-400 mb-2"><span id="progress-percent">0</span>%</p>
+                <div class="w-full bg-gray-700 rounded-full h-2.5"><div id="progress-bar" class="bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div></div>
+                <div class="flex justify-between text-sm text-gray-400 mt-2"><span>Level <span id="level">1</span></span><span><span id="xp">0</span> XP</span></div>
+            </div>
+            <div id="roadmap-list" class="space-y-3"></div>
+        </div>
+    </template>
+    
+    <template id="jobs-template">
+        <h1 class="text-3xl font-bold mb-6">Recommended Jobs For You</h1>
+        <p class="text-gray-400 mb-8">Based on your profile, here are some career paths that could be a great fit. Click a card for a detailed report.</p>
+        <div id="jobs-list" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="col-span-full text-center p-8"><div class="loader mx-auto"></div></div>
+        </div>
+    </template>
+
+    <template id="settings-template">
+         <div class="max-w-lg mx-auto card-bg p-8 rounded-lg">
+            <h2 class="text-2xl font-bold text-white mb-6">Profile Settings</h2>
+            <form id="settings-form">
+                 <div class="mb-4"><label for="settings-displayName" class="block text-sm font-medium text-gray-400">Display Name</label><input type="text" id="settings-displayName" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md" required></div>
+                 <div class="mb-4"><label for="settings-email" class="block text-sm font-medium text-gray-400">Email</label><input type="email" id="settings-email" class="mt-1 block w-full bg-gray-700 border-gray-600 text-gray-400 rounded-md" disabled></div>
+                 <div class="mb-6"><label for="settings-phone" class="block text-sm font-medium text-gray-400">Phone Number</label><input type="tel" id="settings-phone" class="mt-1 block w-full bg-gray-900 border-gray-600 text-white rounded-md"></div>
+                <button type="submit" class="w-full btn-primary py-2.5 px-4">Save Changes</button>
+                <p id="settings-success" class="text-green-400 text-sm mt-4 text-center"></p>
+            </form>
+         </div>
+    </template>
+
+    <!-- Modal for Step/Job Details and Confirmation -->
+    <div id="details-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-700">
+            <div class="flex justify-between items-center p-4 border-b border-gray-700"><h3 id="modal-title" class="text-lg font-semibold">Details</h3><button id="close-modal-btn" class="text-gray-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button></div>
+            <div id="modal-body" class="p-6 overflow-y-auto"><div id="modal-loader" class="flex justify-center p-8"><div class="loader"></div></div><div id="modal-content" class="hidden modal-content"></div></div>
+        </div>
+    </div>
+    
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-sm text-center p-6 border border-gray-700">
+            <h3 class="text-lg font-semibold text-white">Are you sure?</h3>
+            <p class="text-sm text-gray-400 mt-2">Starting a new roadmap will reset your current level and XP. This action cannot be undone.</p>
+            <div class="mt-6 flex justify-center gap-4">
+                <button id="cancel-reset-btn" class="px-4 py-2 rounded-md text-sm font-medium text-gray-300 bg-gray-700 hover:bg-gray-600">Cancel</button>
+                <button id="confirm-reset-btn" class="px-4 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700">Yes, Start New</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+        const app = document.getElementById('app');
+        let currentUser = null;
+        let selectedAvatar = 'avatar-1';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            checkAuthState();
+        });
+
+        function renderView(viewName, contentName) {
+            if (viewName === 'auth') {
+                app.innerHTML = document.getElementById('auth-template').innerHTML;
+                setupAuthListeners();
+            } else {
+                if (!document.querySelector('.sidebar-bg')) {
+                    app.innerHTML = document.getElementById('app-shell-template').innerHTML;
+                }
+                const mainContent = document.getElementById('main-content');
+                mainContent.innerHTML = document.getElementById(contentName + '-template').innerHTML;
+                
+                document.querySelectorAll('aside nav a').forEach(a => a.classList.remove('bg-gray-700'));
+                if (contentName === 'dashboard') document.getElementById('home-nav').classList.add('bg-gray-700');
+                if (contentName === 'jobs') document.getElementById('jobs-nav').classList.add('bg-gray-700');
+                if (contentName === 'settings') document.getElementById('settings-nav').classList.add('bg-gray-700');
+
+                setupAppShellListeners();
+                switch(contentName) {
+                    case 'profile': setupProfileListeners(); break;
+                    case 'quiz': setupQuizListeners(); break;
+                    case 'dashboard': displayDashboard(); break;
+                    case 'jobs': displayRecommendedJobs(); break;
+                    case 'settings': setupSettingsListeners(); break;
+                }
+            }
+            lucide.createIcons();
+        }
+
+        async function checkAuthState() {
+            const token = localStorage.getItem('accessToken');
+            if (!token) { renderView('auth'); return; }
+            try {
+                currentUser = await fetchAPI('/users/me');
+                if (!currentUser.profile_setup_completed) renderView('app-shell', 'profile');
+                else if (!currentUser.quiz_completed) renderView('app-shell', 'quiz');
+                else renderView('app-shell', 'dashboard');
+            } catch (error) { console.error(error); handleLogout(); }
+        }
+        
+        async function displayDashboard() {
+            if (!currentUser) return;
+            
+            let roadmapData = currentUser.ai_roadmap;
+            if (typeof roadmapData === 'string') {
+                try { roadmapData = JSON.parse(roadmapData); } 
+                catch (e) { console.error("Failed to parse roadmap data:", e); renderView('app-shell', 'quiz'); return; }
+            }
+            if (!roadmapData) { renderView('app-shell', 'quiz'); return; }
+            
+            updateGamificationStats(roadmapData);
+            
+            const roadmapList = document.getElementById('roadmap-list');
+            roadmapList.innerHTML = '';
+            const icons = { Course: 'book-open', Certification: 'award', Project: 'lightbulb', Internship: 'briefcase' };
+
+            roadmapData.roadmap.forEach((step, index) => {
+                const isCompleted = currentUser.completed_steps && currentUser.completed_steps.includes(index);
+                const stepEl = document.createElement('div');
+                stepEl.className = `card-bg p-4 rounded-lg flex items-center gap-4 transition-all ${isCompleted ? 'opacity-50' : 'hover:bg-gray-700'}`;
+                stepEl.innerHTML = `<div class="cursor-pointer flex-grow" id="step-info-${index}"><h4 class="font-semibold ${isCompleted ? 'line-through' : ''}">${step.title}</h4><p class="text-sm text-gray-400">${step.description}</p></div><input type="checkbox" id="step-check-${index}" class="h-5 w-5 rounded bg-gray-900 border-gray-600 text-blue-500 focus:ring-blue-600" ${isCompleted ? 'checked disabled' : ''}>`;
+                roadmapList.appendChild(stepEl);
+
+                if (!isCompleted) {
+                    stepEl.querySelector(`#step-check-${index}`).addEventListener('change', (e) => {
+                        if (e.target.checked) { e.target.disabled = true; handleCompleteStep(index, e.target); }
+                    });
+                    stepEl.querySelector(`#step-info-${index}`).addEventListener('click', () => handleStepClick(step));
+                }
+            });
+            fetchDashboardSummary();
+        }
+
+        async function displayRecommendedJobs() {
+            const jobsList = document.getElementById('jobs-list');
+            try {
+                const data = await fetchAPI('/recommended-jobs', 'POST');
+                jobsList.innerHTML = '';
+                data.jobs.forEach(job => {
+                    const jobCard = document.createElement('div');
+                    jobCard.className = 'card-bg p-6 rounded-lg job-card cursor-pointer';
+                    jobCard.innerHTML = `
+                        <h4 class="text-xl font-bold text-white">${job.title}</h4>
+                        <p class="text-gray-400 mt-2 h-20 overflow-hidden">${job.description}</p>
+                    `;
+                    jobCard.addEventListener('click', () => handleJobClick(job));
+                    jobsList.appendChild(jobCard);
+                });
+            } catch (error) {
+                jobsList.innerHTML = `<p class="col-span-full text-center text-red-400">Could not load recommended jobs.</p>`;
+            }
+        }
+        
+        async function fetchDashboardSummary() {
+            try {
+                const summary = await fetchAPI('/dashboard-summary', 'POST', {});
+                document.getElementById('skill-based-summary').textContent = summary.skill_based;
+                document.getElementById('interest-based-summary').textContent = summary.interest_based;
+                document.getElementById('experience-based-summary').textContent = summary.experience_based;
+            } catch (error) {
+                console.error("Failed to fetch dashboard summary:", error);
+            }
+        }
+
+        function updateGamificationStats(roadmapData) {
+            if (!roadmapData || typeof roadmapData !== 'object' || !roadmapData.roadmap) return;
+            const totalSteps = roadmapData.roadmap.length;
+            const completedSteps = currentUser.completed_steps ? currentUser.completed_steps.length : 0;
+            const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
+            document.getElementById('progress-percent').textContent = Math.round(progress);
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            document.getElementById('level').textContent = currentUser.level;
+            document.getElementById('xp').textContent = currentUser.xp;
+        }
+
+        function setupAppShellListeners() {
+            document.getElementById('home-nav').addEventListener('click', (e) => { e.preventDefault(); if (currentUser.quiz_completed) renderView('app-shell', 'dashboard'); else renderView('app-shell', 'quiz'); });
+            document.getElementById('jobs-nav').addEventListener('click', (e) => { e.preventDefault(); renderView('app-shell', 'jobs'); });
+            document.getElementById('settings-nav').addEventListener('click', (e) => { e.preventDefault(); renderView('app-shell', 'settings'); });
+            document.getElementById('logout-btn').addEventListener('click', handleLogout);
+            document.getElementById('close-modal-btn')?.addEventListener('click', () => document.getElementById('details-modal').classList.add('hidden'));
+            
+            // NEW: Listener for the New Roadmap button on dashboard
+            const newRoadmapBtn = document.getElementById('new-roadmap-btn');
+            if (newRoadmapBtn) {
+                newRoadmapBtn.addEventListener('click', () => document.getElementById('confirm-modal').classList.remove('hidden'));
+            }
+            document.getElementById('cancel-reset-btn')?.addEventListener('click', () => document.getElementById('confirm-modal').classList.add('hidden'));
+            document.getElementById('confirm-reset-btn')?.addEventListener('click', () => { document.getElementById('confirm-modal').classList.add('hidden'); renderView('app-shell', 'quiz'); });
+        }
+        function setupAuthListeners() {
+            document.getElementById('login-tab').addEventListener('click', () => showTab('login'));
+            document.getElementById('register-tab').addEventListener('click', () => showTab('register'));
+            document.getElementById('register-form').addEventListener('submit', handleRegister);
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+        }
+        function setupProfileListeners() {
+            populateAvatars();
+            document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
+        }
+        function setupQuizListeners() {
+            document.getElementById('quiz-form').addEventListener('submit', handleQuizSubmit);
+        }
+        function setupSettingsListeners() {
+            document.getElementById('settings-displayName').value = currentUser.displayName;
+            document.getElementById('settings-email').value = currentUser.email;
+            document.getElementById('settings-phone').value = currentUser.phoneNumber || '';
+            document.getElementById('settings-form').addEventListener('submit', handleSettingsUpdate);
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const email = e.target.querySelector('#register-email').value;
+            const password = e.target.querySelector('#register-password').value;
+            const errorEl = document.getElementById('auth-error');
+            errorEl.textContent = '';
+            try {
+                await fetchAPI('/register', 'POST', { email, password });
+                alert('Registration successful! Please log in.');
+                showTab('login');
+                e.target.reset();
+            } catch(error) { errorEl.textContent = error.message; }
+        }
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = e.target.querySelector('#login-email').value;
+            const password = e.target.querySelector('#login-password').value;
+            const errorEl = document.getElementById('auth-error');
+            errorEl.textContent = '';
+            try {
+                const data = await fetchAPI('/token', 'POST', { email, password });
+                localStorage.setItem('accessToken', data.access_token);
+                await checkAuthState();
+            } catch(error) { errorEl.textContent = error.message; }
+        }
+        async function handleProfileUpdate(e) {
+            e.preventDefault();
+            const profileData = { displayName: document.getElementById('displayName').value, avatar: selectedAvatar };
+            try {
+                await fetchAPI('/update-profile', 'POST', profileData);
+                currentUser.profile_setup_completed = true;
+                currentUser.displayName = profileData.displayName;
+                currentUser.avatar = profileData.avatar;
+                renderView('app-shell', 'quiz');
+            } catch(error) { alert(error.message); }
+        }
+        async function handleQuizSubmit(e) {
+            e.preventDefault();
+            const quizData = { skills: document.getElementById('skills').value, interests: document.getElementById('interests').value, experience: document.getElementById('experience').value };
+            renderView('app-shell', 'dashboard');
+            try {
+                const data = await fetchAPI('/submit-quiz', 'POST', quizData);
+                currentUser.quiz_completed = true;
+                currentUser.ai_roadmap = JSON.parse(data.roadmap);
+                currentUser.xp = 0;
+                currentUser.level = 1;
+                currentUser.completed_steps = [];
+                displayDashboard();
+            } catch (error) { alert(error.message); renderView('app-shell', 'quiz'); }
+        }
+        async function handleSettingsUpdate(e) {
+            e.preventDefault();
+            const successMsg = document.getElementById('settings-success');
+            successMsg.textContent = '';
+            const details = { displayName: document.getElementById('settings-displayName').value, phoneNumber: document.getElementById('settings-phone').value };
+            try {
+                await fetchAPI('/update-user-details', 'POST', details);
+                successMsg.textContent = "Profile saved successfully!";
+                currentUser.displayName = details.displayName;
+                currentUser.phoneNumber = details.phoneNumber;
+                setTimeout(() => { if (successMsg) successMsg.textContent = ''; }, 2000);
+            } catch (error) { if (successMsg) successMsg.textContent = "Failed to save."; }
+        }
+        async function handleCompleteStep(stepIndex, checkbox) {
+             try {
+                const data = await fetchAPI('/complete-step', 'POST', { stepIndex });
+                currentUser.xp = data.new_xp;
+                currentUser.level = data.new_level;
+                currentUser.completed_steps.push(stepIndex);
+                updateGamificationStats(JSON.parse(currentUser.ai_roadmap));
+                const rect = checkbox.getBoundingClientRect();
+                confetti({ particleCount: 100, spread: 70, origin: { y: (rect.top + rect.height / 2) / window.innerHeight, x: (rect.left + rect.width / 2) / window.innerWidth } });
+            } catch (error) { checkbox.checked = false; checkbox.disabled = false; }
+        }
+        async function handleStepClick(step) {
+            const modal = document.getElementById('details-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('modal-title').textContent = step.title;
+            const modalContent = document.getElementById('modal-content');
+            const modalLoader = document.getElementById('modal-loader');
+            modalLoader.classList.remove('hidden');
+            modalContent.classList.add('hidden');
+            try {
+                const data = await fetchAPI('/get-step-details', 'POST', { stepTitle: step.title, stepDescription: step.description });
+                modalContent.innerHTML = marked.parse(data.details);
+            } catch (error) { modalContent.innerHTML = `<p class="text-red-400">Could not load details.</p>`; }
+            finally { modalLoader.classList.add('hidden'); modalContent.classList.remove('hidden'); }
+        }
+        async function handleJobClick(job) {
+            const modal = document.getElementById('details-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('modal-title').textContent = job.title;
+            const modalContent = document.getElementById('modal-content');
+            const modalLoader = document.getElementById('modal-loader');
+            modalLoader.classList.remove('hidden');
+            modalContent.classList.add('hidden');
+            try {
+                const data = await fetchAPI('/job-details', 'POST', { jobTitle: job.title });
+                modalContent.innerHTML = marked.parse(data.details);
+            } catch (error) { modalContent.innerHTML = `<p class="text-red-400">Could not load details.</p>`; }
+            finally { modalLoader.classList.add('hidden'); modalContent.classList.remove('hidden'); }
+        }
+
+        async function fetchAPI(endpoint, method = 'GET', body = null) {
+            const token = localStorage.getItem('accessToken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const config = { method, headers };
+            if (body) config.body = JSON.stringify(body);
+            const response = await fetch(`${API_URL}${endpoint}`, config);
+            if (!response.ok) {
+                let errorDetail = 'An API error occurred';
+                try { const error = await response.json(); errorDetail = error.detail || errorDetail; } 
+                catch(e) {}
+                throw new Error(errorDetail);
+            }
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) { return response.json(); } 
+        }
+        function populateAvatars() {
+            const avatarSelection = document.getElementById('avatar-selection');
+            if(!avatarSelection) return;
+            avatarSelection.innerHTML = '';
+            for (let i = 1; i <= 8; i++) {
+                const avatarName = `avatar-${i}`;
+                const img = document.createElement('img');
+                img.src = `https://api.dicebear.com/8.x/pixel-art/svg?seed=${avatarName}.svg`;
+                img.className = `w-16 h-16 rounded-full cursor-pointer p-1 border-2 border-transparent hover:border-blue-500 transition-all`;
+                if (i === 1) img.classList.add('avatar-selected');
+                img.addEventListener('click', () => {
+                    document.querySelectorAll('#avatar-selection img').forEach(el => el.classList.remove('avatar-selected'));
+                    img.classList.add('avatar-selected');
+                    selectedAvatar = avatarName;
+                });
+                avatarSelection.appendChild(img);
+            }
+        }
+        function handleLogout() { localStorage.removeItem('accessToken'); currentUser = null; renderView('auth'); }
+        function showTab(tabName) {
+            const errorEl = document.getElementById('auth-error');
+            if (errorEl) errorEl.textContent = '';
+            const isLogin = tabName === 'login';
+            document.getElementById('login-tab').classList.toggle('border-blue-400', isLogin);
+            document.getElementById('register-tab').classList.toggle('border-blue-400', !isLogin);
+            document.getElementById('login-form').classList.toggle('hidden', !isLogin);
+            document.getElementById('register-form').classList.toggle('hidden', isLogin);
+        }
+    </script>
+</body>
+</html>
+
